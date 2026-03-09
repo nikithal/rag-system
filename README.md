@@ -1,194 +1,150 @@
-# 🔍 Production-Grade RAG System
+# rag-system
 
-A domain-specific document Q&A system built with production engineering principles.
-Ask questions about your documents and get answers **grounded in evidence** — with citations, no hallucinations.
+A production-grade retrieval-augmented generation (RAG) system for domain-specific document Q&A.
+Built to bridge the gap between a working demo and an enterprise-ready system.
 
 ---
 
-## 🏗️ Architecture
+## Overview
+
+This system ingests documents, retrieves relevant context using hybrid search, and generates
+answers grounded strictly in retrieved evidence. The model declines to answer when supporting
+evidence is absent.
+
+Tested on the "Attention Is All You Need" paper (Vaswani et al., 2017).
+
+---
+
+## Architecture
 
 ```
-User Question
-     │
-     ├──► BM25 Keyword Search  ─┐
-     │                          ├──► RRF Merge ──► Cross-Encoder Re-ranker ──► Top 5 Chunks
-     └──► Vector Semantic Search┘                                                    │
-                                                                                     ▼
-                                                                          LLM (Llama 3.3 via Groq)
-                                                                                     │
-                                                                                     ▼
-                                                                        Answer with Citations ✅
+Query
+  ├── BM25 keyword search
+  └── Vector semantic search
+          │
+          └── Reciprocal Rank Fusion (RRF)
+                    │
+                    └── Cross-encoder re-ranking
+                                │
+                                └── LLM generation with citation enforcement
 ```
 
 ---
 
-## ✨ Features
+## Implementation
 
-### Phase 1 — Core RAG Pipeline
-- **Document ingestion** — PDF and markdown support
-- **Smart chunking** — 500–800 token chunks with 100-token overlap to preserve context
-- **Vector embeddings** — `all-MiniLM-L6-v2` running locally (free, no API)
-- **ChromaDB** — persistent local vector store
-- **Citation enforcement** — model declines to answer if evidence is missing
+### Phase 1 — Core pipeline
 
-### Phase 2 — Production Quality
-- **Hybrid retrieval** — BM25 keyword search + vector semantic search combined
-- **Reciprocal Rank Fusion (RRF)** — merges both search results fairly
-- **Cross-encoder re-ranking** — `ms-marco-MiniLM-L-6-v2` re-scores top 20 chunks
-- **Prompt versioning** — all prompts stored in `prompts/rag_prompt.yaml`
+- PDF ingestion with pypdf
+- Chunking: 500–800 tokens, 100-token overlap to avoid splitting sentences mid-context
+- Embeddings: all-MiniLM-L6-v2 via Sentence Transformers (local, no API)
+- Vector store: ChromaDB (persistent local store)
+- Prompt enforces citation and declines response when evidence is missing
 
-### Phase 3 — Evaluation & CI/CD
-- **Golden evaluation dataset** — 10 manually verified Q&A pairs
-- **RAGAS metrics** — faithfulness, answer relevancy, context recall
-- **GitHub Actions** — automated evaluation on every push, build fails if quality drops
+### Phase 2 — Retrieval quality
 
----
+- Hybrid retrieval: BM25 (keyword) + vector (semantic) merged with Reciprocal Rank Fusion
+- Re-ranking: cross-encoder/ms-marco-MiniLM-L-6-v2 re-scores top 20 candidates
+- Result: final top 5 chunks selected by cross-encoder, not vector similarity alone
+- Prompts versioned in prompts/rag_prompt.yaml — separated from application logic
 
-## 📊 Evaluation Results
+### Phase 3 — Evaluation and CI/CD
 
-| Metric | Score | Threshold | Status |
-|---|---|---|---|
-| Faithfulness | TBD | 0.75 | ✅ |
-| Answer Relevancy | TBD | 0.70 | ✅ |
-| Context Recall | TBD | 0.70 | ✅ |
+- Golden dataset: 10 manually verified question-answer pairs
+- RAGAS metrics: faithfulness, answer relevancy, context recall
+- GitHub Actions: evaluation runs on every push, build fails if metrics drop below threshold
 
 ---
 
-## 🛠️ Tech Stack
+## Why hybrid search?
 
-| Component | Tool | Cost |
-|---|---|---|
-| Orchestration | LangChain | Free |
-| Vector Store | ChromaDB | Free |
-| Embeddings | Sentence Transformers | Free (local) |
-| Keyword Search | BM25 (rank_bm25) | Free |
-| Re-ranker | Cross-Encoder (Sentence Transformers) | Free (local) |
-| LLM | Llama 3.3 70B via Groq | Free |
-| Evaluation | RAGAS | Free |
-| CI/CD | GitHub Actions | Free |
+Pure vector search retrieves by semantic similarity, which works well for conceptual queries
+but misses exact technical terms and specific numbers. BM25 handles exact matches but lacks
+semantic understanding. Combining both with RRF consistently outperforms either alone.
 
-**Total API cost: $0**
+The cross-encoder re-ranker reads the query and each candidate chunk together, which produces
+more accurate relevance scores than the independent scoring used in vector search.
 
 ---
 
-## 🚀 Quick Start
+## Stack
 
-### 1. Clone the repo
+| Component | Tool |
+|---|---|
+| Framework | LangChain |
+| Vector store | ChromaDB |
+| Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
+| Keyword search | rank-bm25 |
+| Re-ranker | cross-encoder/ms-marco-MiniLM-L-6-v2 |
+| LLM | Llama 3.3 70B via Groq API |
+| Evaluation | RAGAS |
+| CI/CD | GitHub Actions |
+
+All models run locally except the LLM inference (Groq free tier).
+
+---
+
+## Setup
+
 ```bash
-git clone https://github.com/yourusername/rag-system.git
+git clone https://github.com/nikithal/rag-system.git
 cd rag-system
-```
 
-### 2. Create virtual environment
-```bash
 python3.11 -m venv venv
-source venv/bin/activate      # Mac/Linux
-venv\Scripts\activate         # Windows
-```
+source venv/bin/activate
 
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Set up environment variables
-```bash
-cp .env.example .env
-# Add your GROQ_API_KEY to .env
+Create a `.env` file:
+
+```
+GROQ_API_KEY=your_key_here
 ```
 
 Get a free Groq API key at https://console.groq.com
 
-### 5. Add your documents
 ```bash
-# Place PDF files in the data/ folder
-cp your_document.pdf data/
-```
-
-### 6. Ingest documents
-```bash
+# Place PDFs in data/
 python -m src.ingest
-```
-
-### 7. Launch the app
-```bash
 streamlit run app.py
 ```
 
-Open http://localhost:8501 in your browser.
-
 ---
 
-## 📁 Project Structure
+## Evaluation
 
-```
-rag-system/
-├── src/
-│   ├── ingest.py          # PDF loading, chunking, embedding, ChromaDB storage
-│   ├── retrieval.py       # Hybrid BM25 + vector search + cross-encoder re-ranking
-│   └── pipeline.py        # End-to-end RAG: retrieve → prompt → LLM → answer
-├── prompts/
-│   └── rag_prompt.yaml    # Versioned prompts (never hardcoded)
-├── evals/
-│   ├── golden_dataset.json # Manually verified Q&A ground truth
-│   └── run_evals.py        # RAGAS evaluation script
-├── data/                   # Your PDF documents go here
-├── .github/
-│   └── workflows/
-│       └── eval.yml        # GitHub Actions CI/CD pipeline
-├── app.py                  # Streamlit web UI
-└── requirements.txt
+```bash
+python -m evals.run_evals
 ```
 
----
-
-## 🔬 Why Hybrid Search?
-
-Pure vector search struggles with specific technical terms and exact numbers. BM25 keyword search struggles with semantic meaning. This system combines both:
-
-| Query Type | Vector | BM25 | Hybrid |
-|---|---|---|---|
-| "What is attention?" (conceptual) | ✅ | ⚠️ | ✅ |
-| "What is the BLEU score?" (specific fact) | ⚠️ | ✅ | ✅ |
-| "WMT 2014 English-German results" (technical term) | ❌ | ✅ | ✅ |
-
-The cross-encoder re-ranker then reads query + chunk **together** to produce final precision scoring — consistently outperforming either method alone.
+Metrics are checked against thresholds defined in run_evals.py.
+Exit code 1 if any metric falls below threshold — used by the CI pipeline.
 
 ---
 
-## 📈 Phase Comparison
+## Project structure
 
-| Feature | Phase 1 | Phase 2 |
-|---|---|---|
-| Search | Vector only | BM25 + Vector |
-| Re-ranking | None | Cross-encoder |
-| Chunk relevance scores | 0.3–0.4 | 2.0–5.0 |
-| Specific fact retrieval | ❌ | ✅ |
-
----
-
-##  Key Engineering Decisions
-
-**Why store prompts in YAML?**
-Prompts are part of your system architecture. Versioning them separately means you can track changes, roll back if quality drops, and modify behaviour without touching Python code.
-
-**Why 100-token overlap in chunking?**
-Important sentences often span chunk boundaries. Overlap ensures no context is lost when a key idea is split across two chunks.
-
-**Why retrieve 20 then re-rank to 5?**
-The cross-encoder is slower than vector search — it reads query+chunk together. We use fast search to get 20 candidates, then use the precise cross-encoder only on those 20. Best of both worlds: speed + precision.
+```
+src/
+  ingest.py        — chunking, embedding, ChromaDB ingestion
+  retrieval.py     — hybrid search, RRF, cross-encoder re-ranking
+  pipeline.py      — retrieval + LLM + citation enforcement
+prompts/
+  rag_prompt.yaml  — versioned prompt config
+evals/
+  golden_dataset.json  — ground truth Q&A pairs
+  run_evals.py         — RAGAS evaluation script
+.github/workflows/
+  eval.yml         — CI/CD pipeline
+app.py             — Streamlit interface
+```
 
 ---
 
-## 🔮 What's Next
+## Limitations
 
-- [ ] Add support for markdown and .txt files
-- [ ] Implement streaming responses in the UI
-- [ ] Add conversation history (multi-turn Q&A)
-- [ ] Deploy to Streamlit Cloud (free hosting)
-
----
-
-## 📄 License
-
-MIT License — free to use and modify.
+- Chunking is word-based, not token-based. Actual token counts may vary by model tokenizer.
+- PDF tables are not parsed structurally. Tabular data may be garbled after extraction.
+- Re-ranking adds latency (~1-2s) proportional to the number of candidates scored.
+- RAGAS evaluation consumes LLM tokens. With Groq free tier, limit dataset to 5-10 examples per run.
