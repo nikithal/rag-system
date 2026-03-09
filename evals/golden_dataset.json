@@ -1,0 +1,22 @@
+[
+  {
+    "question": "What BLEU score did the Transformer big model achieve on WMT 2014 English-to-German translation?",
+    "ground_truth": "The Transformer big model achieved a BLEU score of 28.4 on the WMT 2014 English-to-German translation task."
+  },
+  {
+    "question": "What BLEU score did the Transformer big model achieve on WMT 2014 English-to-French translation?",
+    "ground_truth": "The Transformer big model achieved a BLEU score of 41.8 on the WMT 2014 English-to-French translation task."
+  },
+  {
+    "question": "What is the attention mechanism?",
+    "ground_truth": "An attention function maps a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum of the values."
+  },
+  {
+    "question": "What is multi-head attention?",
+    "ground_truth": "Multi-head attention linearly projects queries, keys and values h times with different learned projections, performs attention in parallel, then concatenates and projects the results."
+  },
+  {
+    "question": "What optimizer was used to train the Transformer?",
+    "ground_truth": "The Adam optimizer was used with beta1 of 0.9, beta2 of 0.98, and epsilon of 10 to the power of negative 9."
+  }
+]

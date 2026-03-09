@@ -1,0 +1,56 @@
+# eval.yml
+# Runs automatically on every push or pull request to main branch
+# Fails the build if RAG quality drops below thresholds
+
+name: RAG Quality Evaluation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out your code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # Step 3: Install all dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Step 4: Re-ingest documents (builds fresh ChromaDB)
+      - name: Ingest documents
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python -m src.ingest
+
+      # Step 5: Run the evaluation
+      # If faithfulness/relevancy/recall drop below threshold → exit code 1 → build fails
+      - name: Run RAG evaluation
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m evals.run_evals
+
+      # Step 6: Save results as an artifact (downloadable from GitHub)
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v3
+        if: always()   # upload even if evaluation fails
+        with:
+          name: eval-results
+          path: evals/results.json
